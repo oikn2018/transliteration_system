@@ -306,6 +306,9 @@ class Decoder(nn.Module):
 
       # Linear layer to calculate attention scores
       self.energy = nn.Linear(hidden_size * (self.dir+1), 1)
+      self.U = nn.Linear(hidden_size*self.dir, hidden_size)
+      self.W = nn.Linear(hidden_size, hidden_size)
+      self.attn = nn.Linear(hidden_size, 1)
       self.softmax = nn.Softmax(dim=0)
       self.relu = nn.ReLU()
 
@@ -332,7 +335,12 @@ class Decoder(nn.Module):
       # h_reshaped = hidden.repeat(sequence_length, 1, 1)
       # print(h_reshaped.shape, sequence_length, hidden.shape, encoder_states.shape)
       # Calculate energy scores for attention
-      energy = self.relu(self.energy(torch.cat((h_reshaped, encoder_states), dim=2)))
+      U = self.U(encoder_states)
+      # print(U.shape)
+      W = self.W(h_reshaped)
+      # print(W.shape)
+      energy = self.attn(torch.tanh(U+W))
+#       energy = self.relu(self.energy(torch.cat((h_reshaped, encoder_states), dim=2)))
 
       # Compute attention values
       attention = self.softmax(energy)
@@ -417,6 +425,7 @@ class Seq2Seq(nn.Module):
       x = target[t] if random.random() < teacher_force_ratio else best_guess
 
     return outputs
+
 
 def translit_infer(model, word, eng, indic, device, max_length=50, config = None):
     tokens = tokenize_eng(word)
@@ -698,5 +707,5 @@ def train():
           epoch_loss = 0
 # %%time
 # train()
-wandb.agent('ijyf0uum', function=train,project='CS6910_Assignment3', entity='dl_research', count=10)
+wandb.agent('ijyf0uum', function=train,project='CS6910_Assignment3', entity='dl_research', count=15)
 
