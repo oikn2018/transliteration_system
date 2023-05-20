@@ -8,7 +8,6 @@
 # !pip install wandb
 # ! wandb login 519ef73bbeeba4f437e82d8aeb9cf27e62a84740
 
-
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
@@ -46,7 +45,7 @@ torch.backends.cudnn.deterministic=True
 torch.backends.cudnn.benchmark=False
 
     
-# Default configuration for best model
+# Default configuration for best model without attention
 config = {
   "load_model": False,
   "test_model": False,
@@ -55,55 +54,53 @@ config = {
   "wandb_entity": 'dl_research',
   "dropout": 0.3,
   "learning_rate": 0.0005,
-  "batch_size": 256,
+  "batch_size": 128,
   "input_embedding_size": 256,
-  "num_layers": 2,
-  "hidden_size": 1024,
+  "num_layers": 4,
+  "hidden_size": 512,
   "cell_type": 'GRU',
-  "bidirectional": True,
+  "bidirectional": False,
   "epochs": 30
 }
 
 # Remove this later
-config['load_model'] = True
-config['test_model'] = True
-config['epochs'] = 1
+# config['load_model'] = True
+# config['test_model'] = True
+# config['epochs'] = 1
+
+parser = argparse.ArgumentParser()
+
+parser.add_argument("-load","--load_model", default=config['load_model'], type=type(config['load_model']), required=False, help='Choose whether to load parameters of best model with attention. Choices: [True, False]', choices = [True, False])
+
+parser.add_argument("-test","--test_model", default=config['test_model'], type=type(config['test_model']), required=False, help='Choose whether to test model with attention using Test Data. Choices: [True, False]', choices = [True, False])
+
+parser.add_argument("-lang","--indic_lang", default=config['indic_lang'], type=str, required=False, help='Choose Indic Language to train and test model. Choices: ["ben", "hin"]', choices = ["ben", "hin"])
+
+parser.add_argument("-wp","--wandb_project", default=config['wandb_project'], type=str, required=False, help='Project name used to track experiments in Weights & Biases dashboard')
+
+parser.add_argument("-we", "--wandb_entity", default=config['wandb_entity'], type=str, required=False, help='Wandb Entity used to track experiments in the Weights & Biases dashboard.')
+
+parser.add_argument('-lr','--learning_rate', type=type(config['learning_rate']), default = config['learning_rate'],help=f"Choose Learning rate of the optimizer.")
+
+parser.add_argument('-do','--dropout', type=type(config['dropout']), default = config['dropout'], help=f"Choose Dropout to be added to the Encoder and Decoder")
+
+parser.add_argument('-bs','--batch_size', type=type(config['batch_size']), default = config['batch_size'], help=f"Choose Batch Size to be used")
+
+parser.add_argument('-iem','--input_embedding_size', type=type(config['input_embedding_size']), default = config['input_embedding_size'], help=f"Choose Input/Output Embedding Size")
+
+parser.add_argument('-nl','--num_layers', type=type(config['num_layers']), default = config['num_layers'], help=f"Choose Number of Layers in both Encoder and Decoder")
+
+parser.add_argument('-hs','--hidden_size', type=type(config['hidden_size']), default = config['hidden_size'], help=f"Choose Hidden Size for both Encoder and Decoder")
+
+parser.add_argument('-cell','--cell_type', type=type(config['cell_type']), default = config['cell_type'], help=f"Choose Cell Type: RNN, LSTM, GRU", choices = ["RNN", "LSTM", "GRU"])
+
+parser.add_argument('-bidir','--bidirectional', type=type(config['bidirectional']), default = config['bidirectional'], help=f"Choose whether to use Unidirectional or Bidirectional Cell (Boolean Value: True/False)", choices = [True, False])
+
+parser.add_argument('-ep','--epochs', type=type(config['epochs']), default = config['epochs'], help=f"Number of epochs for which to train model")
 
 
-
-# parser = argparse.ArgumentParser()
-
-# parser.add_argument("-load","--load_model", default=config['load_model'], type=type(config['load_model']), required=False, help='Choose whether to load parameters of best model with attention. Choices: [True, False]', choices = [True, False])
-
-# parser.add_argument("-test","--test_model", default=config['test_model'], type=type(config['test_model']), required=False, help='Choose whether to test model with attention using Test Data. Choices: [True, False]', choices = [True, False])
-
-# parser.add_argument("-lang","--indic_lang", default=config['indic_lang'], type=str, required=False, help='Choose Indic Language to train and test model. Choices: ["ben", "hin"]', choices = ["ben", "hin"])
-
-# parser.add_argument("-wp","--wandb_project", default=config['wandb_project'], type=str, required=False, help='Project name used to track experiments in Weights & Biases dashboard')
-
-# parser.add_argument("-we", "--wandb_entity", default=config['wandb_entity'], type=str, required=False, help='Wandb Entity used to track experiments in the Weights & Biases dashboard.')
-
-# parser.add_argument('-lr','--learning_rate', type=type(config['learning_rate']), default = config['learning_rate'],help=f"Choose Learning rate of the optimizer.")
-
-# parser.add_argument('-do','--dropout', type=type(config['dropout']), default = config['dropout'], help=f"Choose Dropout to be added to the Encoder and Decoder")
-
-# parser.add_argument('-bs','--batch_size', type=type(config['batch_size']), default = config['batch_size'], help=f"Choose Batch Size to be used")
-
-# parser.add_argument('-iem','--input_embedding_size', type=type(config['input_embedding_size']), default = config['input_embedding_size'], help=f"Choose Input/Output Embedding Size")
-
-# parser.add_argument('-nl','--num_layers', type=type(config['num_layers']), default = config['num_layers'], help=f"Choose Number of Layers in both Encoder and Decoder")
-
-# parser.add_argument('-hs','--hidden_size', type=type(config['hidden_size']), default = config['hidden_size'], help=f"Choose Hidden Size for both Encoder and Decoder")
-
-# parser.add_argument('-cell','--cell_type', type=type(config['cell_type']), default = config['cell_type'], help=f"Choose Cell Type: RNN, LSTM, GRU", choices = ["RNN", "LSTM", "GRU"])
-
-# parser.add_argument('-bidir','--bidirectional', type=type(config['bidirectional']), default = config['bidirectional'], help=f"Choose whether to use Unidirectional or Bidirectional Cell (Boolean Value: True/False)", choices = [True, False])
-
-# parser.add_argument('-ep','--epochs', type=type(config['epochs']), default = config['epochs'], help=f"Number of epochs for which to train model")
-
-
-# args = parser.parse_args()
-# config  = vars(args)
+args = parser.parse_args()
+config  = vars(args)
 print(config)
 
 
@@ -120,10 +117,11 @@ if not os.path.exists("aksharantar_sampled"):
     print('Done!')
   os.remove(filename)
 
+# Load Best Model without Attention
 if config['load_model']:
-  url = 'https://drive.google.com/uc?id=1MX8KlEyo-5VI5NMyIV4CJ9BHoyZEMUSP&export=download'
-  if not os.path.exists('best_model_att.pth.tar'):
-      gdown.download(url = url, output='best_model_att.pth.tar', quiet=False, fuzzy=True)
+  url = 'https://drive.google.com/uc?id=1n12tVSP_-0Ep0YCVQA_EN1qtzNYNnv5A&export=download'
+  if not os.path.exists('best_model_wo_att.pth.tar'):
+      gdown.download(url = url, output='best_model_wo_att.pth.tar', quiet=False, fuzzy=True)
 
 
 eng_alpha = 'abcdefghijklmnopqrstuvwxyz'
@@ -209,210 +207,121 @@ eng.build_vocab(train_data, max_size = 1000, min_freq = 1)
 indic.build_vocab(train_data, max_size = 1000, min_freq = 1)
 
 class Encoder(nn.Module):
+  # input_size = size of vocab
+  # embedding_size - to map each input to some d dim space
+  # num_layers 
   def __init__(self, input_size, embedding_size, hidden_size, num_layers, p, config=None):
     super(Encoder, self).__init__()
 
     if config is None:
-      # Default configuration if not provided
       config = {
+        "load_model": False,
+        "test_model": False,
+        "indic_lang": 'ben',
         "wandb_project": 'CS6910_Assignment3',
         "wandb_entity": 'dl_research',
         "dropout": 0.3,
         "learning_rate": 0.0005,
-        "batch_size": 256,
+        "batch_size": 128,
         "input_embedding_size": 256,
-        "num_layers": 2,
-        "hidden_size": 1024,
+        "num_layers": 4,
+        "hidden_size": 512,
         "cell_type": 'GRU',
-        "bidirectional": True,
+        "bidirectional": False,
         "epochs": 30
       }
 
     self.hidden_size = hidden_size
-    self.bidirectional = config['bidirectional']
     self.num_layers = num_layers
     self.dropout = nn.Dropout(p)
     self.embedding = nn.Embedding(input_size, embedding_size)
     self.cell_type = config['cell_type']
-
-    # Choose the appropriate recurrent cell type and configure it based on the provided parameters
-    if self.cell_type == 'LSTM' and self.bidirectional:
-      self.lstm = nn.LSTM(embedding_size, hidden_size, num_layers, bidirectional=True, dropout=p)
-    elif self.cell_type=='LSTM':
+    if self.cell_type == 'LSTM':
       self.lstm = nn.LSTM(embedding_size, hidden_size, num_layers, dropout=p)
-    elif self.cell_type == 'GRU' and self.bidirectional:
-      self.gru = nn.GRU(embedding_size, hidden_size, num_layers, bidirectional=True, dropout=p)
     elif self.cell_type == 'GRU':
       self.gru = nn.GRU(embedding_size, hidden_size, num_layers, dropout=p)
-    elif self.cell_type == 'RNN' and self.bidirectional:
-      self.rnn = nn.RNN(embedding_size, hidden_size, num_layers, bidirectional=True, dropout=p)
     elif self.cell_type == 'RNN':
       self.rnn = nn.RNN(embedding_size, hidden_size, num_layers, dropout=p)
 
-
+  # x - vector of indices, each token of sentence will be mapped to an index in vocab
   def forward(self, x):
+    # x shape: (seq_length, N) -> N: batch size
 
-    """
-        Perform forward pass of the encoder.
-
-        Args:
-            x: Input sequence tensor of shape (seq_length, N) where N is the batch size.
-
-        Returns:
-            encoder_states: Encoded states for each time step of shape (seq_length, N, hidden_size).
-            hidden: Final hidden state of the encoder of shape (num_layers, N, hidden_size) if unidirectional,
-                    or (2*num_layers, N, hidden_size) if bidirectional.
-    """
-
-    # embedding shape: (seq_length, N, embedding_size)
     embedding = self.dropout(self.embedding(x))
-    
+    #embedding shape: (seq_length, N, embedding_size) -> each word(seq_length) will be mapped to an embedding of embedding_size
 
-    if self.cell_type == 'LSTM' and self.bidirectional:
-      encoder_states, (hidden, cell) = self.lstm(embedding)
-      hidden = (hidden[0:self.num_layers] + hidden[self.num_layers:2*self.num_layers])/2
-      cell = (cell[0:self.num_layers] + cell[self.num_layers:2*self.num_layers])/2
-      return encoder_states, hidden, cell
-    
-    elif self.cell_type == 'LSTM':
-      encoder_states, (hidden, cell) = self.lstm(embedding)
-      return encoder_states, hidden, cell
-    
-    elif self.cell_type == 'RNN' and self.bidirectional:
-      encoder_states, hidden = self.rnn(embedding)
-      hidden = (hidden[0:self.num_layers] + hidden[self.num_layers:2*self.num_layers])/2
-      return encoder_states, hidden
-    
+    if self.cell_type == 'LSTM':
+      outputs, (hidden, cell) = self.lstm(embedding)
+      return hidden, cell
     elif self.cell_type == 'RNN':
-      encoder_states, hidden = self.rnn(embedding)
-      return encoder_states, hidden
-    
-    elif self.cell_type == 'GRU' and self.bidirectional:
-      encoder_states, hidden = self.gru(embedding)
-      hidden = (hidden[0:self.num_layers] + hidden[self.num_layers:2*self.num_layers])/2
-      return encoder_states, hidden
-    
+      outputs, hidden = self.rnn(embedding)
+      return hidden
     elif self.cell_type == 'GRU':
-      encoder_states, hidden = self.gru(embedding)
-      return encoder_states, hidden
+      outputs, hidden = self.gru(embedding)
+      return hidden
 
     
+    # return hidden, cell
+    #outputs not important, only hidden and cell is important as they form the context vector
+
 class Decoder(nn.Module):
+  # input_size - size of english vocab, output_size same as input_size
     def __init__(self, input_size, embedding_size, hidden_size, output_size, num_layers, p, config=None):
       super(Decoder,self).__init__()
 
       if config is None:
-        # Default configuration if not provided
         config = {
+          "load_model": False,
+          "test_model": False,
+          "indic_lang": 'ben',
           "wandb_project": 'CS6910_Assignment3',
           "wandb_entity": 'dl_research',
           "dropout": 0.3,
           "learning_rate": 0.0005,
-          "batch_size": 256,
+          "batch_size": 128,
           "input_embedding_size": 256,
-          "num_layers": 2,
-          "hidden_size": 1024,
+          "num_layers": 4,
+          "hidden_size": 512,
           "cell_type": 'GRU',
-          "bidirectional": True,
+          "bidirectional": False,
           "epochs": 30
         }
       self.hidden_size = hidden_size
       self.num_layers = num_layers
       self.cell_type = config['cell_type']
-      self.bidirectional = config['bidirectional']
+
       self.dropout = nn.Dropout(p)
       self.embedding = nn.Embedding(input_size, embedding_size)
-      self.dir = 2 if self.bidirectional else 1
-
       if self.cell_type == 'LSTM':
-        self.lstm = nn.LSTM(hidden_size*self.dir + embedding_size, hidden_size, num_layers, dropout=p)
+        self.lstm = nn.LSTM(embedding_size, hidden_size, num_layers, dropout=p)
       elif self.cell_type == 'GRU':
-        self.gru = nn.GRU(hidden_size*self.dir + embedding_size, hidden_size, num_layers, dropout=p)
+        self.gru = nn.GRU(embedding_size, hidden_size, num_layers, dropout=p)
       elif self.cell_type == 'RNN':
-        self.rnn = nn.RNN(hidden_size*self.dir + embedding_size, hidden_size, num_layers, dropout=p)
+        self.rnn = nn.RNN(embedding_size, hidden_size, num_layers, dropout=p)
 
-      # Linear layer to calculate attention scores
-      self.energy = nn.Linear(hidden_size * (self.dir+1), 1)
-      self.U = nn.Linear(hidden_size*self.dir, hidden_size)
-      self.W = nn.Linear(hidden_size, hidden_size)
-      self.attn = nn.Linear(hidden_size, 1)
-      self.softmax = nn.Softmax(dim=0)
-      self.relu = nn.ReLU()
+      # Note: Hidden size of encoder and decoder must be the same
 
-      # Linear layer for final output prediction
       self.fc = nn.Linear(hidden_size, output_size)
 
-    def forward(self, x, encoder_states, hidden, cell):
-      """
-        Perform a forward pass of the decoder.
-
-        Args:
-            x: Input sequence tensor of shape (N), where N is the batch size.
-            encoder_states: Encoded states from the encoder of shape (seq_length, N, hidden_size).
-            hidden: Hidden state of the decoder of shape (num_layers*num_directions, N, hidden_size).
-            cell: Cell state of the decoder for LSTM, only passed when using bidirectional LSTM. Shape is same as hidden.
-
-        Returns:
-            predictions: Output predictions of the decoder of shape (N, output_size).
-            hidden: Hidden state of the decoder of shape (num_layers*num_directions, N, hidden_size).
-            cell: Cell state of the decoder for LSTM, only returned when bidirectional LSTM is used. Shape is same as hidden.
-      """
-
-      # Expand dimensions to match the expected input shape
+    def forward(self, x, hidden, cell):
+      #Prediction is done one word at a time, but for N words in a batch, so (1,N)
+      # shape of x: (N) but we want (1, N) -> i.e. N batches of a single word, Decoder predicts 1 word at a time, taking prev Decoder output and prev hidden cell.
       x = x.unsqueeze(0)
-      # Shape of x: (1, N)
 
       embedding = self.dropout(self.embedding(x))
       # embedding shape: (1,N, embedding_size)
 
-
-      sequence_length = encoder_states.shape[0]
-      # Implementation Logic 1: taking final layer hidden tensor value and passing it onto energy.
-      hidden_temp = hidden[-1].unsqueeze(0)
-      # Implementation Logic 2: taking average of all layer hidden tensor values and passing it onto energy.
-      # hidden_temp = torch.mean(hidden, dim=0).unsqueeze(0)
-      # Shape of hidden_temp: (1, N, hidden_size)
-
-      # Using Baudanau Additive Attention Mechanism
-
-      # Calculate energy scores for attention
-      U = self.U(encoder_states)
-      # Shape of U: (seq_length, N, hidden_size)
-
-      # Expand the hidden states to match the sequence length
-      W = self.W(hidden_temp.repeat(sequence_length, 1, 1))
-      # Shape of W: (seq_length, N, hidden_size)
-
-      energy = self.attn(torch.tanh(U+W))
-#     # Shape of energy: (seq_length, N, 1)
-
-      # Compute attention values
-      attention = self.softmax(energy)
-      # Shape of attention: (seq_length, N, 1)
-
-      # Calculate the context vector using attention
-      context_vector = torch.bmm(attention.permute(1, 2, 0), encoder_states.permute(1, 0, 2)).permute(1,0,2)
-      # Shape of context_vector: (1, N, hidden_size)
-
-      # Concatenate the context vector and embedded input
-      rnn_input = torch.cat((context_vector, embedding), dim=2)
-      # Shape of rnn_input: (1, N, hidden_size + embedding_size)
-
-      # Pass the concatenated input through the LSTM/GRU/RNN
       if self.cell_type == 'LSTM':
-        outputs, (hidden, cell) = self.lstm(rnn_input, (hidden, cell))
+        outputs, (hidden, cell) = self.lstm(embedding, (hidden, cell))
       elif self.cell_type == 'GRU':
-        outputs, hidden = self.gru(rnn_input, hidden)
+        outputs, hidden = self.gru(embedding, hidden)
       elif self.cell_type == 'RNN':
-        outputs, hidden = self.rnn(rnn_input, hidden)
+        outputs, hidden = self.rnn(embedding, hidden)
       
-      # Final output prediction
+      # shape of outputs: (1, N, hidden_size)
       predictions = self.fc(outputs)
-      # Shape of predictions: (1, N, output_size)
-
-      # Remove the first dimension to match the target shape
+      # shape of predictions: (1, N, length_of_vocab) -> (N, length_of_vocab)
       predictions = predictions.squeeze(0)
-      # Shape of predictions: (N, output_size)
 
       if self.cell_type == 'LSTM':
         return predictions, hidden, cell
@@ -425,72 +334,56 @@ class Seq2Seq(nn.Module):
     super(Seq2Seq, self).__init__()
 
     if config is None:
-      # Default configuration if not provided
       config = {
+        "load_model": False,
+        "test_model": False,
+        "indic_lang": 'ben',
         "wandb_project": 'CS6910_Assignment3',
         "wandb_entity": 'dl_research',
         "dropout": 0.3,
         "learning_rate": 0.0005,
-        "batch_size": 256,
+        "batch_size": 128,
         "input_embedding_size": 256,
-        "num_layers": 2,
-        "hidden_size": 1024,
+        "num_layers": 4,
+        "hidden_size": 512,
         "cell_type": 'GRU',
-        "bidirectional": True,
+        "bidirectional": False,
         "epochs": 30
       }
 
-    self.run_name = 'att_cell_{}_do_{}_lr_{}_bs_{}_iem_{}_nl_{}_hs_{}_bidir_{}_ep_{}'.format(config['cell_type'], config['dropout'], config['learning_rate'], config['batch_size'], config['input_embedding_size'], config['num_layers'], config['hidden_size'], config['bidirectional'], config['epochs'])
+    self.run_name = 'cell_{}_do_{}_lr_{}_bs_{}_iem_{}_nl_{}_hs_{}_bidir_{}_ep_{}'.format(config['cell_type'], config['dropout'], config['learning_rate'], config['batch_size'], config['input_embedding_size'], config['num_layers'], config['hidden_size'], config['bidirectional'], config['epochs'])
     self.encoder = encoder
     self.decoder = decoder
     self.cell_type = config['cell_type']
 
   def forward(self, source, target, teacher_force_ratio = 0.5):
-    """
-        Perform a forward pass of the sequence-to-sequence model.
-
-        Args:
-            source: Input sequence tensor of shape (target_len, N), where N is the batch size.
-            target: Target sequence tensor of shape (target_len, N).
-            teacher_force_ratio: The probability of using teacher forcing during training.
-
-        Returns:
-            outputs: Output predictions of the decoder of shape (target_len, N, target_vocab_size).
-    """
-
-    batch_size = source.shape[1]
+    batch_size = source.shape[1] # source dim: (target_len, N) -> N: batch size
     target_len = target.shape[0]
     target_vocab_size = len(indic.vocab)
 
-    # Initialize outputs tensor
+    # predict 1 word at a time, but do it for an entire batch, every vector will be of that entire vocab size
     outputs = torch.zeros(target_len, batch_size, target_vocab_size).to(device)
-    
-    # Encode the source sequence
     if self.cell_type == 'LSTM':
-        encoder_states, hidden, cell = self.encoder(source)
+      hidden, cell = self.encoder(source)
     else:
-        encoder_states, hidden = self.encoder(source)
+      hidden = self.encoder(source)
 
-    # Initialize the first target token
+    # Grab start token
     x = target[0]
 
-    # Generate output predictions word by word
+    # send to decoder word by word
     for t in range(1, target_len):
-        if self.cell_type == 'LSTM':
-            output, hidden, cell = self.decoder(x, encoder_states, hidden, cell)
-        else:
-            output, hidden = self.decoder(x, encoder_states, hidden, cell=None)
+      if self.cell_type == 'LSTM':
+        output, hidden, cell = self.decoder(x, hidden, cell)
+      else:
+        output, hidden = self.decoder(x, hidden, cell=None)
 
-        outputs[t] = output  # Adding along the first dimension (target_len)
-        
-        # Select the next input based on teacher forcing ratio
-        best_guess = output.argmax(1)
+      outputs[t] = output # adding along 1st dimension -> target_len
+      # output dim -> (N, english_vocab_size) -> doing argmax along this dimension, we'll get index corresponding to best guess that decoder outputted.
+      best_guess = output.argmax(1)
 
-        # Implementing Teacher Forcing
-        if random.random() >= teacher_force_ratio:
-           x = best_guess
-        else:
-           x = target[t]
+      # implementing ground truth
+      x = target[t] if random.random() < teacher_force_ratio else best_guess
 
     return outputs
 
@@ -498,9 +391,10 @@ def translit_infer(model, word, eng, indic, device, max_length=50, config = None
     tokens = tokenize_eng(word)
 
     # Add <SOS> and <EOS> in beginning and end respectively
-    tokens = [eng.init_token] + tokens + [eng.eos_token]
+    tokens.insert(0, eng.init_token)
+    tokens.append(eng.eos_token)
 
-    # Convert tokens to indices
+
     text_to_indices = [eng.vocab.stoi[token] for token in tokens]
 
     # Convert to Tensor
@@ -509,9 +403,9 @@ def translit_infer(model, word, eng, indic, device, max_length=50, config = None
     # Build encoder hidden, cell state
     with torch.no_grad():
       if config['cell_type'] == 'LSTM':
-        encoder_states, hidden, cell = model.encoder(word_tensor)
+        hidden, cell = model.encoder(word_tensor)
       else:
-        encoder_states, hidden = model.encoder(word_tensor)
+        hidden = model.encoder(word_tensor)
 
     outputs = [indic.vocab.stoi["<sos>"]]
 
@@ -520,15 +414,15 @@ def translit_infer(model, word, eng, indic, device, max_length=50, config = None
 
         with torch.no_grad():
           if config['cell_type'] == 'LSTM':
-            output, hidden, cell = model.decoder(previous_char, encoder_states, hidden, cell)
+            output, hidden, cell = model.decoder(previous_char, hidden, cell)
           else:
-            output, hidden = model.decoder(previous_char, encoder_states, hidden, cell=None)
+            output, hidden = model.decoder(previous_char, hidden, cell=None)
           best_guess = output.argmax(1).item()
 
         outputs.append(best_guess)
 
-        # Check if the model predicts the end of the sentence
-        if best_guess == indic.vocab.stoi["<eos>"]:
+        # Model predicts it's the end of the sentence
+        if output.argmax(1).item() == indic.vocab.stoi["<eos>"]:
             break
 
     translit_res = [indic.vocab.itos[idx] for idx in outputs]
@@ -543,6 +437,7 @@ def translit_infer(model, word, eng, indic, device, max_length=50, config = None
       else:
         break
     return translit_res_word
+
 
 model_name=""
 # Saving Checkpoint Code
@@ -583,7 +478,7 @@ def check_accuracy(loader, model, input_shape=None, toggle_eval=True, print_test
     if config['test_model'] and print_test:
       fields = ["english_word", "ground_truth", "predicted_word"]
 
-      with open('predictions_attention.csv', 'w', newline='') as file: 
+      with open('predictions_vanilla.csv', 'w', newline='') as file: 
           writer = csv.DictWriter(file, fieldnames = fields)
           writer.writeheader()
           writer.writerows(print_list)
@@ -689,7 +584,7 @@ def train():
     criterion = nn.CrossEntropyLoss(ignore_index = pad_idx)
 
     if load_model:
-      load_checkpoint(torch.load(f'best_model_att.pth.tar'), model, optimizer)
+      load_checkpoint(torch.load(f'best_model_wo_att.pth.tar', map_location=device), model, optimizer)
 
     if indic_lang == 'hin':
       word = 'bachta'
@@ -710,7 +605,7 @@ def train():
           'state_dict': model.state_dict(),
           'optimizer': optimizer.state_dict()
       }
-      if epoch % 5 == 0 and epoch != 0:
+      if epoch % 5 == 0:
       # if acc_val_current > acc_val_prev:
 
           if os.path.exists(f'{indic_lang}_{model_name}_{epoch}_checkpoint.pth.tar'):
@@ -780,4 +675,3 @@ def train():
 
 train()
 # wandb.agent(sweep_id_w_att, function=train,project=config['wandb_project'], entity=config['wandb_entity'], count=15)
-
