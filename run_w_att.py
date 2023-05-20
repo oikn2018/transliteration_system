@@ -18,7 +18,7 @@ from torch.autograd import Variable
 import os
 import gdown
 from tqdm import tqdm
-import wandb
+# import wandb
 from io import open
 import string, time, math
 import wget
@@ -63,11 +63,12 @@ config = {
 }
 
 
+
 parser = argparse.ArgumentParser()
 
-parser.add_argument("-load","--load_model", default=config['load_model'], type=config['load_model'], required=False, help='Choose whether to load parameters of best model with attention. Choices: [True, False]', choices = [True, False])
+parser.add_argument("-load","--load_model", default=config['load_model'], type=type(config['load_model']), required=False, help='Choose whether to load parameters of best model with attention. Choices: [True, False]', choices = [True, False])
 
-parser.add_argument("-test","--test_model", default=config['test_model'], type=config['test_model'], required=False, help='Choose whether to test model with attention using Test Data. Choices: [True, False]', choices = [True, False])
+parser.add_argument("-test","--test_model", default=config['test_model'], type=type(config['test_model']), required=False, help='Choose whether to test model with attention using Test Data. Choices: [True, False]', choices = [True, False])
 
 parser.add_argument("-lang","--indic_lang", default=config['indic_lang'], type=str, required=False, help='Choose Indic Language to train and test model. Choices: ["ben", "hin"]', choices = ["ben", "hin"])
 
@@ -111,6 +112,12 @@ if not os.path.exists("aksharantar_sampled"):
     z.extractall()
     print('Done!')
   os.remove(filename)
+
+if config['load_model']:
+  url = 'https://drive.google.com/uc?id=1MX8KlEyo-5VI5NMyIV4CJ9BHoyZEMUSP&export=download'
+  if not os.path.exists('best_model_att.pth.tar'):
+      gdown.download(url = url, output='best_model_att.pth.tar', quiet=False, fuzzy=True)
+
 
 eng_alpha = 'abcdefghijklmnopqrstuvwxyz'
 pad_char = '<PAD>'
@@ -567,205 +574,191 @@ def check_accuracy(loader, model, input_shape=None, toggle_eval=True, print_accu
         model.train()
     return accuracy
 
-### Now model is ready to train
 
-
-# # Default configuration if not provided
-# config = {
-#   "wandb_project": 'CS6910_Assignment3',
-#   "wandb_entity": 'dl_research',
-#   "dropout": 0.3,
-#   "learning_rate": 0.0005,
-#   "batch_size": 256,
-#   "input_embedding_size": 256,
-#   "num_layers": 2,
-#   "hidden_size": 1024,
-#   "cell_type": 'GRU',
-#   "bidirectional": True,
-#   "epochs": 30
+# sweep_config_w_att = {
+#     'method': 'bayes', 
+#     'metric': {
+#       'name': 'val_accuracy',
+#       'goal': 'maximize'   
+#     },
+#     'parameters': {
+#         'dropout': {
+#             'values': [config['dropout']]
+#         },
+#         'learning_rate': {
+#             'values': [config['learning_rate']]
+#         },
+#         'batch_size': {
+#             'values': [config['batch_size']]
+#         },
+#         'input_embedding_size': {
+#             'values': [config['input_embedding_size']]
+#         },
+#         'num_layers': {
+#             'values': [config['num_layers']]
+#         },
+#         'hidden_size':{
+#             'values': [config['hidden_size']]
+#         },
+#         'cell_type': {
+#             'values': [config['cell_type']]
+#         },
+#         'bidirectional': {
+#             'values': [config['bidirectional']]
+#         },
+#         'epochs':{
+#             'values': [config['epochs']]
+#         }
+#     }
 # }
 
-sweep_config_w_att = {
-    'method': 'bayes', 
-    'metric': {
-      'name': 'val_accuracy',
-      'goal': 'maximize'   
-    },
-    'parameters': {
-        'dropout': {
-            'values': [config['dropout']]
-        },
-        'learning_rate': {
-            'values': [config['learning_rate']]
-        },
-        'batch_size': {
-            'values': [config['batch_size']]
-        },
-        'input_embedding_size': {
-            'values': [config['input_embedding_size']]
-        },
-        'num_layers': {
-            'values': [config['num_layers']]
-        },
-        'hidden_size':{
-            'values': [config['hidden_size']]
-        },
-        'cell_type': {
-            'values': [config['cell_type']]
-        },
-        'bidirectional': {
-            'values': [config['bidirectional']]
-        },
-        'epochs':{
-            'values': [config['epochs']]
-        }
-    }
-}
-
-sweep_id_w_att = wandb.sweep(sweep_config_w_att,project=config['wandb_project'], entity=config['wandb_entity'])
+# sweep_id_w_att = wandb.sweep(sweep_config_w_att,project=config['wandb_project'], entity=config['wandb_entity'])
 
 device = torch.device('cuda:0' if torch.cuda.is_available() else 'cpu')
 print(f'Device being used to train/test model: {torch.cuda.get_device_name(0)}')
 
 def train():
     torch.cuda.empty_cache()
-    with wandb.init() as run:
-        config = wandb.config
+    # with wandb.init() as run:
+        # config = wandb.config
 
-        # Training Hyperparameters
-        num_epochs = config['epochs']
-        learning_rate = config['learning_rate']
-        batch_size = config['batch_size']
+    # Training Hyperparameters
+    num_epochs = config['epochs']
+    learning_rate = config['learning_rate']
+    batch_size = config['batch_size']
 
-        # Model Hyperparameters
-        load_model = config['load_model']
-        input_size_encoder = len(eng.vocab)
-        input_size_decoder = len(indic.vocab)
-        output_size = len(indic.vocab)
-        encoder_embedding_size = config['input_embedding_size']
-        decoder_embedding_size = config['input_embedding_size']
-        hidden_size = config['hidden_size']
-        num_layers = config['num_layers']
-        enc_dropout = config['dropout']
-        dec_dropout = config['dropout']
-        cell_type = config['cell_type']
-        bidirectional = config['bidirectional']
+    # Model Hyperparameters
+    load_model = config['load_model']
+    input_size_encoder = len(eng.vocab)
+    input_size_decoder = len(indic.vocab)
+    output_size = len(indic.vocab)
+    encoder_embedding_size = config['input_embedding_size']
+    decoder_embedding_size = config['input_embedding_size']
+    hidden_size = config['hidden_size']
+    num_layers = config['num_layers']
+    enc_dropout = config['dropout']
+    dec_dropout = config['dropout']
+    cell_type = config['cell_type']
+    bidirectional = config['bidirectional']
 
-        train_iterator, val_iterator, test_iterator = BucketIterator.splits(
-        (train_data, val_data, test_data),
-        batch_size = batch_size,
-        # Examples of similar length will be in same batch to minimize padding and save on compute
-        sort_within_batch = True,
-        sort_key = lambda x: len(x.eng),
-        device = device)
-
-
-
-        encoder_net = Encoder(
-            input_size_encoder, encoder_embedding_size, hidden_size, num_layers, enc_dropout, config=config
-            ).to(device)
-        decoder_net = Decoder(
-            input_size_decoder, decoder_embedding_size, hidden_size, output_size, num_layers, dec_dropout, config=config
-            ).to(device)
+    train_iterator, val_iterator, test_iterator = BucketIterator.splits(
+    (train_data, val_data, test_data),
+    batch_size = batch_size,
+    # Examples of similar length will be in same batch to minimize padding and save on compute
+    sort_within_batch = True,
+    sort_key = lambda x: len(x.eng),
+    device = device)
 
 
 
-        model = Seq2Seq(encoder_net, decoder_net, config=config).to(device)
-        model_name = model.run_name
-        run.name = model_name
-        optimizer = optim.Adam(model.parameters(), lr=learning_rate)
-
-        pad_idx = indic.vocab.stoi['<pad>']
-        # if all examples in batch are of similar length, don't incur penalty for this padding
-        criterion = nn.CrossEntropyLoss(ignore_index = pad_idx)
-
-        if load_model:
-          load_checkpoint(torch.load(f'{indic_lang}_{model_name}_checkpoint.pth.tar'), model, optimizer)
-
-        if indic_lang == 'hin':
-          word = 'bachta'
-          og_translit = 'बचता'
-        elif indic_lang == 'ben':
-          word = 'stagecraft'
-          og_translit = 'স্টেজক্রাফট'
-        acc_val_prev = 0
-        acc_val_current = 0
-        epoch_loss = 0
-
-        print(f'Hyperparameter settings: {model_name}')
-
-        for epoch in range(num_epochs):
-          print(f'Epoch [{epoch+1} / {num_epochs}]')
-
-          checkpoint = {
-              'state_dict': model.state_dict(),
-              'optimizer': optimizer.state_dict()
-          }
-          if acc_val_current > acc_val_prev:
-
-              if os.path.exists(f'{indic_lang}_{model_name}_checkpoint.pth.tar'):
-                  os.remove(f'{indic_lang}_{model_name}_checkpoint.pth.tar')
-              acc_val_prev = acc_val_current
-              save_checkpoint(checkpoint, f'{indic_lang}_{model_name}_checkpoint.pth.tar')
+    encoder_net = Encoder(
+        input_size_encoder, encoder_embedding_size, hidden_size, num_layers, enc_dropout, config=config
+        ).to(device)
+    decoder_net = Decoder(
+        input_size_decoder, decoder_embedding_size, hidden_size, output_size, num_layers, dec_dropout, config=config
+        ).to(device)
 
 
 
-          loop = tqdm(enumerate(train_iterator), total=len(train_iterator))
-          for batch_idx, batch in loop:
-            inp_data = batch.eng.to(device)
-            target = batch.indic.to(device)
+    model = Seq2Seq(encoder_net, decoder_net, config=config).to(device)
+    model_name = model.run_name
+    # run.name = model_name
+    optimizer = optim.Adam(model.parameters(), lr=learning_rate)
 
-            output = model(inp_data, target)
-            # output shape: (target_len, batch_size, output_dim)
+    pad_idx = indic.vocab.stoi['<pad>']
+    # if all examples in batch are of similar length, don't incur penalty for this padding
+    criterion = nn.CrossEntropyLoss(ignore_index = pad_idx)
 
-            #basically reshape output keeping last output_dim same
-            output = output[1:].reshape(-1, output.shape[2]) # so that first start token is not sent to out model
-            # target -> (target_len, batch_size)
-            target = target[1:].reshape(-1)
-            optimizer.zero_grad()
-            loss = criterion(output, target)
+    if load_model:
+      load_checkpoint(torch.load(f'best_model_att.pth.tar'), model, optimizer)
 
-            loss.backward()
+    if indic_lang == 'hin':
+      word = 'bachta'
+      og_translit = 'बचता'
+    elif indic_lang == 'ben':
+      word = 'stagecraft'
+      og_translit = 'স্টেজক্রাফট'
+    acc_val_prev = 0
+    acc_val_current = 0
+    epoch_loss = 0
 
-            # to avoid exploding gradients, clip them when they are above a threshold
-            torch.nn.utils.clip_grad_norm_(model.parameters(), max_norm=1)
-            optimizer.step()
-            epoch_loss += loss.item()
+    print(f'Hyperparameter settings: {model_name}')
 
-          model.eval() # turns off Dropout
-          translit_res = translit_infer(model, word, eng, indic, device, max_length=50, config=config)
-          print(f'Translated example word:  English: {word}, Actual: {og_translit}, Predicted: {translit_res}')
-          model.train()
+    for epoch in range(num_epochs):
+      print(f'Epoch [{epoch+1} / {num_epochs}]')
 
-          print('Computing Loss and Validation Accuracy...')
-          acc_val_current = check_accuracy(val_iterator, model, input_shape=None, toggle_eval=True, print_accuracy=True, config=config)
-          epoch_loss = epoch_loss/len(train_iterator)
+      checkpoint = {
+          'state_dict': model.state_dict(),
+          'optimizer': optimizer.state_dict()
+      }
+      if epoch % 5 == 0:
+      # if acc_val_current > acc_val_prev:
 
-          acc_test_current = 0
+          if os.path.exists(f'{indic_lang}_{model_name}_{epoch}_checkpoint.pth.tar'):
+              os.remove(f'{indic_lang}_{model_name}_{epoch}_checkpoint.pth.tar')
+          acc_val_prev = acc_val_current
+          save_checkpoint(checkpoint, f'{indic_lang}_{model_name}_{epoch}_checkpoint.pth.tar')
 
-          if config['test_model']:
-            acc_test_current = check_accuracy(test_iterator, model, input_shape=None, toggle_eval=True, print_accuracy=True, config=config)
-            metrics = {
-              "loss":epoch_loss,
-              "val_accuracy": acc_val_current,
-              "epochs":(epoch),
-              "test_accuracy": acc_test_current
-              }
-          else:
-            metrics = {
-              "loss":epoch_loss,
-              "val_accuracy": acc_val_current,
-              "epochs":(epoch)
-              }
+      # First train, then test if config['test_model]==False
+      # if not config['test_model']:
+      loop = tqdm(enumerate(train_iterator), total=len(train_iterator))
+      for batch_idx, batch in loop:
+        inp_data = batch.eng.to(device)
+        target = batch.indic.to(device)
 
-          wandb.log(metrics)
-          if config['test_model']:
-            print(f'Training Loss: {epoch_loss:.2f}, Validation Accuracy: {acc_val_current * 100:.2f}%, Test Accuracy: {acc_test_current * 100:.2f}%')
-          else:
-            print(f'Training Loss: {epoch_loss:.2f}, Validation Accuracy: {acc_val_current * 100:.2f}%')
-          print('--------------------------')
-          epoch_loss = 0
+        output = model(inp_data, target)
+        # output shape: (target_len, batch_size, output_dim)
 
+        #basically reshape output keeping last output_dim same
+        output = output[1:].reshape(-1, output.shape[2]) # so that first start token is not sent to out model
+        # target -> (target_len, batch_size)
+        target = target[1:].reshape(-1)
+        optimizer.zero_grad()
+        loss = criterion(output, target)
 
-wandb.agent(sweep_id_w_att, function=train,project=config['wandb_project'], entity=config['wandb_entity'], count=15)
+        loss.backward()
+
+        # to avoid exploding gradients, clip them when they are above a threshold
+        torch.nn.utils.clip_grad_norm_(model.parameters(), max_norm=1)
+        optimizer.step()
+        epoch_loss += loss.item()
+
+      model.eval() # turns off Dropout
+      translit_res = translit_infer(model, word, eng, indic, device, max_length=50, config=config)
+      print(f'Translated example word:  English: {word}, Actual: {og_translit}, Predicted: {translit_res}')
+      model.train()
+
+      print('Computing Loss, Test and Validation Accuracy...')
+      acc_val_current = check_accuracy(val_iterator, model, input_shape=None, toggle_eval=True, print_accuracy=True, config=config)
+      epoch_loss = epoch_loss/len(train_iterator)
+
+      acc_test_current = 0
+
+      if config['test_model']:
+        # print('Computing Loss and Test Accuracy...')
+        acc_test_current = check_accuracy(test_iterator, model, input_shape=None, toggle_eval=True, print_accuracy=True, config=config)
+      #   metrics = {
+      #     "loss":epoch_loss,
+      #     "val_accuracy": acc_val_current,
+      #     "epochs":(epoch),
+      #     "test_accuracy": acc_test_current
+      #     }
+      # else:
+      #   metrics = {
+      #     "loss":epoch_loss,
+      #     "val_accuracy": acc_val_current,
+      #     "epochs":(epoch)
+      #     }
+
+      # wandb.log(metrics)
+        print(f'Training Loss: {epoch_loss:.2f}, Validation Accuracy: {acc_val_current * 100:.2f}%, Test Accuracy: {acc_test_current * 100:.2f}%')
+      # else:
+      #   print('Computing Loss and Validation Accuracy...')
+      #   # acc_val_current = check_accuracy(val_iterator, model, input_shape=None, toggle_eval=True, print_accuracy=True, config=config)
+      #   print(f'Training Loss: {epoch_loss:.2f}, Validation Accuracy: {acc_val_current * 100:.2f}%')
+      # print('--------------------------')
+      epoch_loss = 0
+
+train()
+# wandb.agent(sweep_id_w_att, function=train,project=config['wandb_project'], entity=config['wandb_entity'], count=15)
 
