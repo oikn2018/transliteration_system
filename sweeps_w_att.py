@@ -5,8 +5,6 @@
 # ! pip install gdown
 # ! pip install --upgrade gdown
 
-# !pip install wandb
-# ! wandb login 519ef73bbeeba4f437e82d8aeb9cf27e62a84740
 
 import torch
 import torch.nn as nn
@@ -16,9 +14,10 @@ import random
 import torch.optim as optim
 from torch.autograd import Variable
 import os
+import csv
 import gdown
 from tqdm import tqdm
-import wandb
+# import wandb
 from io import open
 import string, time, math
 import wget
@@ -29,12 +28,11 @@ from IPython.display import clear_output
 from torch.utils.data import Dataset
 import re
 from torchtext.data import Field, TabularDataset, BucketIterator
-# import numpy as np
-import spacy
-# import random
-# from torch.utils.tensorboard import SummaryWriter # to print to tensorboard
-# from utils import translate_sentence, bleu, save_checkpoint, load_checkpoint
+import numpy as np
+import random
+import argparse
 
+# Seed to maximally ensure reproducibility of results as much as possible
 seed = 42
 np.random.seed(seed)
 random.seed(seed)
@@ -56,25 +54,23 @@ if not os.path.exists("aksharantar_sampled"):
     print('Done!')
   os.remove(filename)
 
+# Define the English alphabet and padding character
 eng_alpha = 'abcdefghijklmnopqrstuvwxyz'
 pad_char = '<PAD>'
 
+# Create a mapping from English alphabet characters to their corresponding indices
 eng_alpha2idx = {pad_char: 0}
 for index, alpha in enumerate(eng_alpha):
-  eng_alpha2idx[alpha] = index+1
+  eng_alpha2idx[alpha] = index + 1
 
-# print(eng_alpha2idx)
-
-# Change Indic Language here
-# indic_lang = 'ben'
-indic_lang = 'ben'
-
-# Bengali Unicode Hex Range: 2432-2558
-# Hindi Unicode Hex Range: 2304-2431
-
+# Define the minimum and maximum Unicode hex ranges for the Indic language
 min_range = 2304
 max_range = 2431
 
+# Choose indic lang from config
+indic_lang = config['indic_lang']
+
+# Specify the Unicode hex ranges for specific Indic languages (Bengali and Hindi)
 if indic_lang == 'ben':
   min_range = 2432
   max_range = 2558
@@ -82,35 +78,32 @@ elif indic_lang == 'hin':
   min_range = 2304
   max_range = 2431
 
+# Create a list of Indic alphabet characters within the specified Unicode hex range
 indic_alpha = [chr(alpha) for alpha in range(min_range, max_range + 1)]
-# print(indic_alpha)
-indic_alpha_size = len(indic_alpha)
 
+# Create a mapping from Indic alphabet characters to their corresponding indices
 indic_alpha2idx = {pad_char: 0}
 for index, alpha in enumerate(indic_alpha):
-  indic_alpha2idx[alpha] = index+1
+  indic_alpha2idx[alpha] = index + 1
 
-# print(indic_alpha2idx)
-
+# Create a reverse mapping from Indic alphabet indices to their corresponding characters
 indic_idx2alpha = {v: k for k, v in indic_alpha2idx.items()}
+
+# Create a reverse mapping from English alphabet indices to their corresponding characters
 eng_idx2alpha = {v: k for k, v in eng_alpha2idx.items()}
 
+# Tokenize a string into a list of indices for the Indic language
 def tokenize_indic(string):
-  # return string.split()
-  char_list =  [*string]
+  char_list = [*string]
   char_list = [indic_alpha2idx[char] for char in char_list]
   return char_list
 
+# Tokenize a string into a list of indices for the English language
 def tokenize_eng(string):
-  # return string.split()
-  char_list =  [*string]
+  char_list = [*string]
   char_list = [eng_alpha2idx[char] for char in char_list]
   return char_list
 
-# print(tokenize_indic('बिन्द्या'))
-# print(tokenize_eng('hello'))
-
-# importing python package
 import pandas as pd
   
 file_names = ['test', 'train', 'valid']
@@ -125,15 +118,22 @@ for index, file_name in enumerate(file_names):
   # converting data frame to csv
   file.to_csv(f'aksharantar_sampled/{indic_lang}/{indic_lang}_{file_name}.csv', header=headerList, index=False)
 
+# Define the Field objects for English and Indic languages
 eng = Field(sequential=True, use_vocab=True, tokenize=tokenize_eng, init_token='<sos>', eos_token='<eos>')
 indic = Field(sequential=True, use_vocab=True, tokenize=tokenize_indic, init_token='<sos>', eos_token='<eos>')
 
+# Define the fields dictionary to specify field names and corresponding Field objects
 fields={'eng': ('eng', eng), f'{indic_lang}': ('indic', indic)}
 
+# Set the path to the directory containing the data files
 path_name = f'aksharantar_sampled/{indic_lang}'
+
+# Specify the file names for the training, validation, and test datasets
 train_name = f'{indic_lang}_train.csv'
 val_name = f'{indic_lang}_valid.csv'
 test_name = f'{indic_lang}_test.csv'
+
+# Load the data from the CSV files using TabularDataset.splits()
 train_data, val_data, test_data = TabularDataset.splits(
     path= path_name,
     train=train_name,
@@ -143,67 +143,30 @@ train_data, val_data, test_data = TabularDataset.splits(
     fields=fields
 )
 
-# print(train_data[0].__dict__.keys())
+# Build the vocabulary for the English language
+eng.build_vocab(train_data, max_size=1000, min_freq=1)
 
-# print(train_data[0].__dict__.values())
+# Build the vocabulary for the Indic language
+indic.build_vocab(train_data, max_size=1000, min_freq=1)
 
-# eng_w, indic_w = [i for i in train_data[0].__dict__.values()]
-# print(eng_w)
-# for val in eng_w:
-#   print(eng_idx2alpha[val])
-
-eng.build_vocab(train_data, max_size = 1000, min_freq = 1)
-indic.build_vocab(train_data, max_size = 1000, min_freq = 1)
-
-# len(eng.vocab)
-
-# print(eng.vocab.__dict__.keys())
-# # print(eng.vocab.help?)
-# print(help(eng.vocab))
-
-def calc_accuracy(net, device = 'cpu', data = val_data):
-    accuracy = 0
-    count = 0
-    for i in range(len(data)):
-        eng_word, indic_word = [j for j in data[i].__dict__.values()]
-
-        output = translit_infer(net, eng_word, eng, indic, device, max_length=50)
-        correct = 0
-
-        for index, char in output:
-          if char == indic_word[index]:
-            correct += 1
-
-
-        char_level_acc = correct/len(indic_word)
-        
-        if char_level_acc == 1.0:
-          count += 1
-    # print(count)
-    accuracy = count/len(data)
-    
-    return accuracy
 
 class Encoder(nn.Module):
-  # input_size = size of vocab
-  # embedding_size - to map each input to some d dim space
-  # num_layers 
   def __init__(self, input_size, embedding_size, hidden_size, num_layers, p, config=None):
     super(Encoder, self).__init__()
 
-    if config == None:
+    if config is None:
+      # Default configuration if not provided
       config = {
         "wandb_project": 'CS6910_Assignment3',
         "wandb_entity": 'dl_research',
-        "dropout": 0.5,
-        "learning_rate": 0.001,
-        "batch_size": 64,
+        "dropout": 0.3,
+        "learning_rate": 0.0005,
+        "batch_size": 256,
         "input_embedding_size": 256,
-        "num_layers": 4,
-        "hidden_size": 512,
+        "num_layers": 2,
+        "hidden_size": 1024,
         "cell_type": 'GRU',
-        "bidirectional": False,
-        "decoding_strategy": 'greedy',
+        "bidirectional": True,
         "epochs": 30
       }
 
@@ -213,6 +176,8 @@ class Encoder(nn.Module):
     self.dropout = nn.Dropout(p)
     self.embedding = nn.Embedding(input_size, embedding_size)
     self.cell_type = config['cell_type']
+
+    # Choose the appropriate recurrent cell type and configure it based on the provided parameters
     if self.cell_type == 'LSTM' and self.bidirectional:
       self.lstm = nn.LSTM(embedding_size, hidden_size, num_layers, bidirectional=True, dropout=p)
     elif self.cell_type=='LSTM':
@@ -226,12 +191,12 @@ class Encoder(nn.Module):
     elif self.cell_type == 'RNN':
       self.rnn = nn.RNN(embedding_size, hidden_size, num_layers, dropout=p)
 
-  # x - vector of indices, each token of sentence will be mapped to an index in vocab
-  def forward(self, x):
-    # x shape: (seq_length, N) -> N: batch size
 
+  def forward(self, x):
+
+    # embedding shape: (seq_length, N, embedding_size)
     embedding = self.dropout(self.embedding(x))
-    #embedding shape: (seq_length, N, embedding_size) -> each word(seq_length) will be mapped to an embedding of embedding_size
+    
 
     if self.cell_type == 'LSTM' and self.bidirectional:
       encoder_states, (hidden, cell) = self.lstm(embedding)
@@ -262,27 +227,23 @@ class Encoder(nn.Module):
       return encoder_states, hidden
 
     
-    # return hidden, cell
-    #outputs not important, only hidden and cell is important as they form the context vector
-
 class Decoder(nn.Module):
-  # input_size - size of english vocab, output_size same as input_size
     def __init__(self, input_size, embedding_size, hidden_size, output_size, num_layers, p, config=None):
       super(Decoder,self).__init__()
 
-      if config == None:
+      if config is None:
+        # Default configuration if not provided
         config = {
           "wandb_project": 'CS6910_Assignment3',
           "wandb_entity": 'dl_research',
-          "dropout": 0.5,
-          "learning_rate": 0.001,
-          "batch_size": 64,
+          "dropout": 0.3,
+          "learning_rate": 0.0005,
+          "batch_size": 256,
           "input_embedding_size": 256,
-          "num_layers": 4,
-          "hidden_size": 512,
+          "num_layers": 2,
+          "hidden_size": 1024,
           "cell_type": 'GRU',
-          "bidirectional": False,
-          "decoding_strategy": 'greedy',
+          "bidirectional": True,
           "epochs": 30
         }
       self.hidden_size = hidden_size
@@ -291,11 +252,7 @@ class Decoder(nn.Module):
       self.bidirectional = config['bidirectional']
       self.dropout = nn.Dropout(p)
       self.embedding = nn.Embedding(input_size, embedding_size)
-      self.dir = 0
-      if self.bidirectional:
-        self.dir = 2
-      else:
-        self.dir = 1
+      self.dir = 2 if self.bidirectional else 1
 
       if self.cell_type == 'LSTM':
         self.lstm = nn.LSTM(hidden_size*self.dir + embedding_size, hidden_size, num_layers, dropout=p)
@@ -316,9 +273,10 @@ class Decoder(nn.Module):
       self.fc = nn.Linear(hidden_size, output_size)
 
     def forward(self, x, encoder_states, hidden, cell):
-      #Prediction is done one word at a time, but for N words in a batch, so (1,N)
-      # shape of x: (N) but we want (1, N) -> i.e. N batches of a single word, Decoder predicts 1 word at a time, taking prev Decoder output and prev hidden cell.
+
+      # Expand dimensions to match the expected input shape
       x = x.unsqueeze(0)
+      # Shape of x: (1, N)
 
       embedding = self.dropout(self.embedding(x))
       # embedding shape: (1,N, embedding_size)
@@ -329,26 +287,32 @@ class Decoder(nn.Module):
       hidden_temp = hidden[-1].unsqueeze(0)
       # Implementation Logic 2: taking average of all layer hidden tensor values and passing it onto energy.
       # hidden_temp = torch.mean(hidden, dim=0).unsqueeze(0)
+      # Shape of hidden_temp: (1, N, hidden_size)
 
-      # Expand the hidden states to match the sequence length
-      h_reshaped = hidden_temp.repeat(sequence_length, 1, 1)
-      # h_reshaped = hidden.repeat(sequence_length, 1, 1)
-      # print(h_reshaped.shape, sequence_length, hidden.shape, encoder_states.shape)
+      # Using Baudanau Additive Attention Mechanism
+
       # Calculate energy scores for attention
       U = self.U(encoder_states)
-      # print(U.shape)
-      W = self.W(h_reshaped)
-      # print(W.shape)
+      # Shape of U: (seq_length, N, hidden_size)
+
+      # Expand the hidden states to match the sequence length
+      W = self.W(hidden_temp.repeat(sequence_length, 1, 1))
+      # Shape of W: (seq_length, N, hidden_size)
+
       energy = self.attn(torch.tanh(U+W))
-#       energy = self.relu(self.energy(torch.cat((h_reshaped, encoder_states), dim=2)))
+#     # Shape of energy: (seq_length, N, 1)
 
       # Compute attention values
       attention = self.softmax(energy)
+      # Shape of attention: (seq_length, N, 1)
+
       # Calculate the context vector using attention
       context_vector = torch.bmm(attention.permute(1, 2, 0), encoder_states.permute(1, 0, 2)).permute(1,0,2)
+      # Shape of context_vector: (1, N, hidden_size)
 
       # Concatenate the context vector and embedded input
       rnn_input = torch.cat((context_vector, embedding), dim=2)
+      # Shape of rnn_input: (1, N, hidden_size + embedding_size)
 
       # Pass the concatenated input through the LSTM/GRU/RNN
       if self.cell_type == 'LSTM':
@@ -360,9 +324,11 @@ class Decoder(nn.Module):
       
       # Final output prediction
       predictions = self.fc(outputs)
+      # Shape of predictions: (1, N, output_size)
 
       # Remove the first dimension to match the target shape
       predictions = predictions.squeeze(0)
+      # Shape of predictions: (N, output_size)
 
       if self.cell_type == 'LSTM':
         return predictions, hidden, cell
@@ -374,19 +340,19 @@ class Seq2Seq(nn.Module):
   def __init__(self, encoder, decoder, config=None):
     super(Seq2Seq, self).__init__()
 
-    if config == None:
+    if config is None:
+      # Default configuration if not provided
       config = {
         "wandb_project": 'CS6910_Assignment3',
         "wandb_entity": 'dl_research',
-        "dropout": 0.5,
-        "learning_rate": 0.001,
-        "batch_size": 64,
+        "dropout": 0.3,
+        "learning_rate": 0.0005,
+        "batch_size": 256,
         "input_embedding_size": 256,
-        "num_layers": 4,
-        "hidden_size": 512,
+        "num_layers": 2,
+        "hidden_size": 1024,
         "cell_type": 'GRU',
-        "bidirectional": False,
-        # "decoding_strategy": 'greedy',
+        "bidirectional": True,
         "epochs": 30
       }
 
@@ -396,45 +362,50 @@ class Seq2Seq(nn.Module):
     self.cell_type = config['cell_type']
 
   def forward(self, source, target, teacher_force_ratio = 0.5):
-    batch_size = source.shape[1] # source dim: (target_len, N) -> N: batch size
+
+    batch_size = source.shape[1]
     target_len = target.shape[0]
     target_vocab_size = len(indic.vocab)
 
-    # predict 1 word at a time, but do it for an entire batch, every vector will be of that entire vocab size
+    # Initialize outputs tensor
     outputs = torch.zeros(target_len, batch_size, target_vocab_size).to(device)
+    
+    # Encode the source sequence
     if self.cell_type == 'LSTM':
-      encoder_states, hidden, cell = self.encoder(source)
+        encoder_states, hidden, cell = self.encoder(source)
     else:
-      encoder_states, hidden = self.encoder(source)
+        encoder_states, hidden = self.encoder(source)
 
-    # Grab start token
+    # Initialize the first target token
     x = target[0]
 
-    # send to decoder word by word
+    # Generate output predictions word by word
     for t in range(1, target_len):
-      if self.cell_type == 'LSTM':
-        output, hidden, cell = self.decoder(x, encoder_states, hidden, cell)
-      else:
-        output, hidden = self.decoder(x, encoder_states, hidden, cell=None)
+        if self.cell_type == 'LSTM':
+            output, hidden, cell = self.decoder(x, encoder_states, hidden, cell)
+        else:
+            output, hidden = self.decoder(x, encoder_states, hidden, cell=None)
 
-      outputs[t] = output # adding along 1st dimension -> target_len
-      # output dim -> (N, english_vocab_size) -> doing argmax along this dimension, we'll get index corresponding to best guess that decoder outputted.
-      best_guess = output.argmax(1)
+        outputs[t] = output  # Adding along the first dimension (target_len)
+        
+        # Select the next input based on teacher forcing ratio
+        best_guess = output.argmax(1)
 
-      # implementing ground truth
-      x = target[t] if random.random() < teacher_force_ratio else best_guess
+        # Implementing Teacher Forcing
+        if random.random() >= teacher_force_ratio:
+           x = best_guess
+        else:
+           x = target[t]
 
     return outputs
-
 
 def translit_infer(model, word, eng, indic, device, max_length=50, config = None):
     tokens = tokenize_eng(word)
 
     # Add <SOS> and <EOS> in beginning and end respectively
-    tokens.insert(0, eng.init_token)
-    tokens.append(eng.eos_token)
+    tokens = [eng.init_token] + tokens + [eng.eos_token]
 
-
+    # Convert tokens to indices
     text_to_indices = [eng.vocab.stoi[token] for token in tokens]
 
     # Convert to Tensor
@@ -461,8 +432,8 @@ def translit_infer(model, word, eng, indic, device, max_length=50, config = None
 
         outputs.append(best_guess)
 
-        # Model predicts it's the end of the sentence
-        if output.argmax(1).item() == indic.vocab.stoi["<eos>"]:
+        # Check if the model predicts the end of the sentence
+        if best_guess == indic.vocab.stoi["<eos>"]:
             break
 
     translit_res = [indic.vocab.itos[idx] for idx in outputs]
@@ -479,57 +450,68 @@ def translit_infer(model, word, eng, indic, device, max_length=50, config = None
     return translit_res_word
 
 model_name=""
+# Saving Checkpoint Code
 def save_checkpoint(state, filename=f"{indic_lang}_{model_name}_checkpoint.pth.tar"):
     print("-x- Saving checkpoint -x-")
     torch.save(state, filename)
 
-
+# Loading Checkpoint Code
 def load_checkpoint(checkpoint, model, optimizer):
     print("-x- Loading checkpoint -x-")
     model.load_state_dict(checkpoint["state_dict"])
     optimizer.load_state_dict(checkpoint["optimizer"])
+    print("-x- Checkpoint Loaded Successfully! -x-")
 
-def check_accuracy(loader, model, input_shape=None, toggle_eval=True, print_accuracy=True, config = None):
+def check_accuracy(loader, model, input_shape=None, toggle_eval=True, print_test=False, config=None):
+ 
     if toggle_eval:
         model.eval()
+    
     device = next(model.parameters()).device
     num_correct = 0
     num_samples = 0
-
+    print_list = []
+    
     with torch.no_grad():
         loader.create_batches()
         for batch in loader.batches:
-          for example in batch:
-            num_samples += 1
-            eng_word = "".join([eng_idx2alpha[val] for val in example.eng])
-            indic_word = "".join([indic_idx2alpha[val2] for val2 in example.indic])
-            indic_pred = translit_infer(model, eng_word, eng, indic, device, max_length=50, config = config)
-            
-            if indic_pred == indic_word:
-              num_correct += 1
-
+            for example in batch:
+                print_row_dict = {}
+                num_samples += 1
+                eng_word = "".join([eng_idx2alpha[val] for val in example.eng])
+                indic_word = "".join([indic_idx2alpha[val2] for val2 in example.indic])
+                indic_pred = translit_infer(model, eng_word, eng, indic, device, max_length=50, config=config)
+                
+                if config['test_model'] and print_test:
+                    # Store the details for printing the test results
+                    print_row_dict['english_word'] = eng_word
+                    print_row_dict['ground_truth'] = indic_word
+                    print_row_dict['predicted_word'] = indic_pred
+                    print_list.append(print_row_dict)
+                
+                if indic_pred == indic_word:
+                    num_correct += 1
+    
+    if config['test_model'] and print_test:
+        fields = ["english_word", "ground_truth", "predicted_word"]
+        
+        # Write the test results to a CSV file
+        with open('predictions_attention.csv', 'w', newline='') as file: 
+            writer = csv.DictWriter(file, fieldnames=fields)
+            writer.writeheader()
+            writer.writerows(print_list)
+    
     accuracy = num_correct / num_samples
+    
     if toggle_eval:
         model.train()
+    
     return accuracy
 
-### Now model is ready to train
 
-# default config
-# config = {
-#    "wandb_project": 'CS6910_Assignment3',
-#    "wandb_entity": 'dl_research',
-#    "dropout": 0.5,
-#    "learning_rate": 0.001,
-#    "batch_size": 64,
-#    "input_embedding_size": 256,
-#    "num_layers": 4,
-#    "hidden_size": 512,
-#    "cell_type": 'GRU',
-#    "bidirectional": False,
-#   #  "decoding_strategy": 'greedy',
-#    "epochs": 5
-#     }
+# Check if CUDA is available and set the device accordingly
+device = torch.device('cuda:0' if torch.cuda.is_available() else 'cpu')
+print(f'Device being used to train/test model: {torch.cuda.get_device_name(0)}')
 
 sweep_config_w_att = {
     'method': 'bayes', 
@@ -577,8 +559,6 @@ sweep_config_w_att = {
 
 sweep_id_w_att = wandb.sweep(sweep_config_w_att,project='CS6910_Assignment3', entity='dl_research')
 
-device = torch.device('cuda:0' if torch.cuda.is_available() else 'cpu')
-print(torch.cuda.get_device_name(0))
 
 def train():
     torch.cuda.empty_cache()
@@ -705,7 +685,6 @@ def train():
           print(f'Training Loss: {epoch_loss}, Validation Accuracy: {acc_val_current * 100:.2f}%')
           print('--------------------------')
           epoch_loss = 0
-# %%time
-# train()
-wandb.agent('ijyf0uum', function=train,project='CS6910_Assignment3', entity='dl_research', count=15)
+
+wandb.agent(sweep_id_w_att, function=train,project='CS6910_Assignment3', entity='dl_research', count=15)
 
