@@ -118,11 +118,14 @@ if not os.path.exists("aksharantar_sampled"):
   os.remove(filename)
 
 # Load Best Model without Attention
-if config['load_model']:
+if config['load_model'] and config['indic_lang'] == 'ben':
   url = 'https://drive.google.com/uc?id=1n12tVSP_-0Ep0YCVQA_EN1qtzNYNnv5A&export=download'
   if not os.path.exists('best_model_wo_att.pth.tar'):
       gdown.download(url = url, output='best_model_wo_att.pth.tar', quiet=False, fuzzy=True)
-
+elif config['load_model'] and config['indic_lang'] == 'hin':
+  url = 'https://drive.google.com/uc?id=1sJOD7cQTBySkimkBxsZalJZqm6aYoq47&export=download'
+  if not os.path.exists('best_model_wo_att.pth.tar'):
+      gdown.download(url = url, output='best_model_wo_att.pth.tar', quiet=False, fuzzy=True)
 
 eng_alpha = 'abcdefghijklmnopqrstuvwxyz'
 pad_char = '<PAD>'
