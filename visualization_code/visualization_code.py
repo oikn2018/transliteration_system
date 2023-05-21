@@ -5,10 +5,6 @@
 # ! pip install gdown
 # ! pip install --upgrade gdown
 
-# !pip install wandb
-# ! wandb login 519ef73bbeeba4f437e82d8aeb9cf27e62a84740
-
-
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
@@ -77,42 +73,6 @@ config['load_model'] = True
 config['test_model'] = True
 config['epochs'] = 1
 
-
-
-# parser = argparse.ArgumentParser()
-
-# parser.add_argument("-load","--load_model", default=config['load_model'], type=type(config['load_model']), required=False, help='Choose whether to load parameters of best model with attention. Choices: [True, False]', choices = [True, False])
-
-# parser.add_argument("-test","--test_model", default=config['test_model'], type=type(config['test_model']), required=False, help='Choose whether to test model with attention using Test Data. Choices: [True, False]', choices = [True, False])
-
-# parser.add_argument("-lang","--indic_lang", default=config['indic_lang'], type=str, required=False, help='Choose Indic Language to train and test model. Choices: ["ben", "hin"]', choices = ["ben", "hin"])
-
-# parser.add_argument("-wp","--wandb_project", default=config['wandb_project'], type=str, required=False, help='Project name used to track experiments in Weights & Biases dashboard')
-
-# parser.add_argument("-we", "--wandb_entity", default=config['wandb_entity'], type=str, required=False, help='Wandb Entity used to track experiments in the Weights & Biases dashboard.')
-
-# parser.add_argument('-lr','--learning_rate', type=type(config['learning_rate']), default = config['learning_rate'],help=f"Choose Learning rate of the optimizer.")
-
-# parser.add_argument('-do','--dropout', type=type(config['dropout']), default = config['dropout'], help=f"Choose Dropout to be added to the Encoder and Decoder")
-
-# parser.add_argument('-bs','--batch_size', type=type(config['batch_size']), default = config['batch_size'], help=f"Choose Batch Size to be used")
-
-# parser.add_argument('-iem','--input_embedding_size', type=type(config['input_embedding_size']), default = config['input_embedding_size'], help=f"Choose Input/Output Embedding Size")
-
-# parser.add_argument('-nl','--num_layers', type=type(config['num_layers']), default = config['num_layers'], help=f"Choose Number of Layers in both Encoder and Decoder")
-
-# parser.add_argument('-hs','--hidden_size', type=type(config['hidden_size']), default = config['hidden_size'], help=f"Choose Hidden Size for both Encoder and Decoder")
-
-# parser.add_argument('-cell','--cell_type', type=type(config['cell_type']), default = config['cell_type'], help=f"Choose Cell Type: RNN, LSTM, GRU", choices = ["RNN", "LSTM", "GRU"])
-
-# parser.add_argument('-bidir','--bidirectional', type=type(config['bidirectional']), default = config['bidirectional'], help=f"Choose whether to use Unidirectional or Bidirectional Cell (Boolean Value: True/False)", choices = [True, False])
-
-# parser.add_argument('-ep','--epochs', type=type(config['epochs']), default = config['epochs'], help=f"Number of epochs for which to train model")
-
-
-# args = parser.parse_args()
-# config  = vars(args)
-print(config)
 
 
 
@@ -675,9 +635,7 @@ elif indic_lang == 'ben':
     
     model.eval() # turns off Dropout
     translit_res, attention_matrix = translit_infer(model, word, eng, indic, device, max_length=50, config=config)
-    # print(f'Translated word:  English: {word}, Actual: {og_translit}, Predicted: {translit_res}')
-    # print(f'Correct Prediction') if og_translit == translit_res else print(f'Wrong Prediction')
-
+ 
     # Plotting Attention Heatmap or English word vs Predicted Indic word
     xlabels = ['<sos>'] + [*word] + ['<eos>']
     ylabels = [*translit_res]+ ['<eos>']
@@ -691,8 +649,7 @@ elif indic_lang == 'ben':
                     # vmin=-0.05,
                     cmap = cmap,
                     cbar=False)
-    # cmap = sns.cm.rocket_r
-    # This sets the yticks "upright" with 0, as opposed to sideways with 90.
+
     plt.yticks(rotation=0) 
     fig = ax.get_figure()
     fig.savefig(f"attn_heatmap_{count}.png", bbox_inches='tight')
