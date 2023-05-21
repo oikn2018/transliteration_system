@@ -5,9 +5,6 @@
 # ! pip install gdown
 # ! pip install --upgrade gdown
 
-# !pip install wandb
-# ! wandb login 519ef73bbeeba4f437e82d8aeb9cf27e62a84740
-
 
 import torch
 import torch.nn as nn
@@ -35,7 +32,7 @@ import numpy as np
 import random
 import argparse
 
-
+# Seed to maximally ensure reproducibility of results as much as possible
 seed = 42
 np.random.seed(seed)
 random.seed(seed)
@@ -46,7 +43,7 @@ torch.backends.cudnn.deterministic=True
 torch.backends.cudnn.benchmark=False
 
     
-# Default configuration for best model
+# Default configuration for best model with Attention
 config = {
   "load_model": False,
   "test_model": False,
@@ -64,48 +61,42 @@ config = {
   "epochs": 30
 }
 
-# Remove this later
-config['load_model'] = True
-config['test_model'] = True
-config['epochs'] = 1
+
+# Parsing arguments given via command line
+parser = argparse.ArgumentParser()
+
+parser.add_argument("-load","--load_model", default=config['load_model'], type=type(config['load_model']), required=False, help='Choose whether to load parameters of best model with attention. Choices: [True, False]', choices = [True, False])
+
+parser.add_argument("-test","--test_model", default=config['test_model'], type=type(config['test_model']), required=False, help='Choose whether to test model with attention using Test Data. Choices: [True, False]', choices = [True, False])
+
+parser.add_argument("-lang","--indic_lang", default=config['indic_lang'], type=str, required=False, help='Choose Indic Language to train and test model. Choices: ["ben", "hin"]', choices = ["ben", "hin"])
+
+parser.add_argument("-wp","--wandb_project", default=config['wandb_project'], type=str, required=False, help='Project name used to track experiments in Weights & Biases dashboard')
+
+parser.add_argument("-we", "--wandb_entity", default=config['wandb_entity'], type=str, required=False, help='Wandb Entity used to track experiments in the Weights & Biases dashboard.')
+
+parser.add_argument('-lr','--learning_rate', type=type(config['learning_rate']), default = config['learning_rate'],help=f"Choose Learning rate of the optimizer.")
+
+parser.add_argument('-do','--dropout', type=type(config['dropout']), default = config['dropout'], help=f"Choose Dropout to be added to the Encoder and Decoder")
+
+parser.add_argument('-bs','--batch_size', type=type(config['batch_size']), default = config['batch_size'], help=f"Choose Batch Size to be used")
+
+parser.add_argument('-iem','--input_embedding_size', type=type(config['input_embedding_size']), default = config['input_embedding_size'], help=f"Choose Input/Output Embedding Size")
+
+parser.add_argument('-nl','--num_layers', type=type(config['num_layers']), default = config['num_layers'], help=f"Choose Number of Layers in both Encoder and Decoder")
+
+parser.add_argument('-hs','--hidden_size', type=type(config['hidden_size']), default = config['hidden_size'], help=f"Choose Hidden Size for both Encoder and Decoder")
+
+parser.add_argument('-cell','--cell_type', type=type(config['cell_type']), default = config['cell_type'], help=f"Choose Cell Type: RNN, LSTM, GRU", choices = ["RNN", "LSTM", "GRU"])
+
+parser.add_argument('-bidir','--bidirectional', type=type(config['bidirectional']), default = config['bidirectional'], help=f"Choose whether to use Unidirectional or Bidirectional Cell (Boolean Value: True/False)", choices = [True, False])
+
+parser.add_argument('-ep','--epochs', type=type(config['epochs']), default = config['epochs'], help=f"Number of epochs for which to train model")
 
 
-
-# parser = argparse.ArgumentParser()
-
-# parser.add_argument("-load","--load_model", default=config['load_model'], type=type(config['load_model']), required=False, help='Choose whether to load parameters of best model with attention. Choices: [True, False]', choices = [True, False])
-
-# parser.add_argument("-test","--test_model", default=config['test_model'], type=type(config['test_model']), required=False, help='Choose whether to test model with attention using Test Data. Choices: [True, False]', choices = [True, False])
-
-# parser.add_argument("-lang","--indic_lang", default=config['indic_lang'], type=str, required=False, help='Choose Indic Language to train and test model. Choices: ["ben", "hin"]', choices = ["ben", "hin"])
-
-# parser.add_argument("-wp","--wandb_project", default=config['wandb_project'], type=str, required=False, help='Project name used to track experiments in Weights & Biases dashboard')
-
-# parser.add_argument("-we", "--wandb_entity", default=config['wandb_entity'], type=str, required=False, help='Wandb Entity used to track experiments in the Weights & Biases dashboard.')
-
-# parser.add_argument('-lr','--learning_rate', type=type(config['learning_rate']), default = config['learning_rate'],help=f"Choose Learning rate of the optimizer.")
-
-# parser.add_argument('-do','--dropout', type=type(config['dropout']), default = config['dropout'], help=f"Choose Dropout to be added to the Encoder and Decoder")
-
-# parser.add_argument('-bs','--batch_size', type=type(config['batch_size']), default = config['batch_size'], help=f"Choose Batch Size to be used")
-
-# parser.add_argument('-iem','--input_embedding_size', type=type(config['input_embedding_size']), default = config['input_embedding_size'], help=f"Choose Input/Output Embedding Size")
-
-# parser.add_argument('-nl','--num_layers', type=type(config['num_layers']), default = config['num_layers'], help=f"Choose Number of Layers in both Encoder and Decoder")
-
-# parser.add_argument('-hs','--hidden_size', type=type(config['hidden_size']), default = config['hidden_size'], help=f"Choose Hidden Size for both Encoder and Decoder")
-
-# parser.add_argument('-cell','--cell_type', type=type(config['cell_type']), default = config['cell_type'], help=f"Choose Cell Type: RNN, LSTM, GRU", choices = ["RNN", "LSTM", "GRU"])
-
-# parser.add_argument('-bidir','--bidirectional', type=type(config['bidirectional']), default = config['bidirectional'], help=f"Choose whether to use Unidirectional or Bidirectional Cell (Boolean Value: True/False)", choices = [True, False])
-
-# parser.add_argument('-ep','--epochs', type=type(config['epochs']), default = config['epochs'], help=f"Number of epochs for which to train model")
-
-
-# args = parser.parse_args()
-# config  = vars(args)
+args = parser.parse_args()
+config  = vars(args)
 print(config)
-
 
 
 # Getting the Dataset
@@ -120,29 +111,35 @@ if not os.path.exists("aksharantar_sampled"):
     print('Done!')
   os.remove(filename)
 
-if config['load_model']:
-  url = 'https://drive.google.com/uc?id=1MX8KlEyo-5VI5NMyIV4CJ9BHoyZEMUSP&export=download'
+# Load Best Model with Attention for 'ben' and 'hin'
+if config['load_model'] and config['indic_lang'] == 'ben':
+  url = 'https://drive.google.com/uc?id=1MgVliD2taxOxb8kEEDU-udr89zBLaSYH&export=download'
+  if not os.path.exists('best_model_att.pth.tar'):
+      gdown.download(url = url, output='best_model_att.pth.tar', quiet=False, fuzzy=True)
+
+elif config['load_model'] and config['indic_lang'] == 'hin':
+  url = 'https://drive.google.com/uc?id=1dyhiyT9cgdJZ73RBYSe88FteMPNkvyfN&export=download'
   if not os.path.exists('best_model_att.pth.tar'):
       gdown.download(url = url, output='best_model_att.pth.tar', quiet=False, fuzzy=True)
 
 
+# Define the English alphabet and padding character
 eng_alpha = 'abcdefghijklmnopqrstuvwxyz'
 pad_char = '<PAD>'
 
+# Create a mapping from English alphabet characters to their corresponding indices
 eng_alpha2idx = {pad_char: 0}
 for index, alpha in enumerate(eng_alpha):
-  eng_alpha2idx[alpha] = index+1
+  eng_alpha2idx[alpha] = index + 1
 
-
-
-# Change Indic Language here
-indic_lang = config['indic_lang']
-
+# Define the minimum and maximum Unicode hex ranges for the Indic language
 min_range = 2304
 max_range = 2431
 
-# Bengali Unicode Hex Range: 2432-2558
-# Hindi Unicode Hex Range: 2304-2431
+# Choose indic lang from config
+indic_lang = config['indic_lang']
+
+# Specify the Unicode hex ranges for specific Indic languages (Bengali and Hindi)
 if indic_lang == 'ben':
   min_range = 2432
   max_range = 2558
@@ -150,25 +147,29 @@ elif indic_lang == 'hin':
   min_range = 2304
   max_range = 2431
 
+# Create a list of Indic alphabet characters within the specified Unicode hex range
 indic_alpha = [chr(alpha) for alpha in range(min_range, max_range + 1)]
+
+# Create a mapping from Indic alphabet characters to their corresponding indices
 indic_alpha2idx = {pad_char: 0}
-
-
 for index, alpha in enumerate(indic_alpha):
-  indic_alpha2idx[alpha] = index+1
+  indic_alpha2idx[alpha] = index + 1
 
+# Create a reverse mapping from Indic alphabet indices to their corresponding characters
 indic_idx2alpha = {v: k for k, v in indic_alpha2idx.items()}
+
+# Create a reverse mapping from English alphabet indices to their corresponding characters
 eng_idx2alpha = {v: k for k, v in eng_alpha2idx.items()}
 
+# Tokenize a string into a list of indices for the Indic language
 def tokenize_indic(string):
-  # return string.split()
-  char_list =  [*string]
+  char_list = [*string]
   char_list = [indic_alpha2idx[char] for char in char_list]
   return char_list
 
+# Tokenize a string into a list of indices for the English language
 def tokenize_eng(string):
-  # return string.split()
-  char_list =  [*string]
+  char_list = [*string]
   char_list = [eng_alpha2idx[char] for char in char_list]
   return char_list
 
@@ -186,15 +187,22 @@ for index, file_name in enumerate(file_names):
   # converting data frame to csv
   file.to_csv(f'aksharantar_sampled/{indic_lang}/{indic_lang}_{file_name}.csv', header=headerList, index=False)
 
+# Define the Field objects for English and Indic languages
 eng = Field(sequential=True, use_vocab=True, tokenize=tokenize_eng, init_token='<sos>', eos_token='<eos>')
 indic = Field(sequential=True, use_vocab=True, tokenize=tokenize_indic, init_token='<sos>', eos_token='<eos>')
 
+# Define the fields dictionary to specify field names and corresponding Field objects
 fields={'eng': ('eng', eng), f'{indic_lang}': ('indic', indic)}
 
+# Set the path to the directory containing the data files
 path_name = f'aksharantar_sampled/{indic_lang}'
+
+# Specify the file names for the training, validation, and test datasets
 train_name = f'{indic_lang}_train.csv'
 val_name = f'{indic_lang}_valid.csv'
 test_name = f'{indic_lang}_test.csv'
+
+# Load the data from the CSV files using TabularDataset.splits()
 train_data, val_data, test_data = TabularDataset.splits(
     path= path_name,
     train=train_name,
@@ -204,9 +212,11 @@ train_data, val_data, test_data = TabularDataset.splits(
     fields=fields
 )
 
+# Build the vocabulary for the English language
+eng.build_vocab(train_data, max_size=1000, min_freq=1)
 
-eng.build_vocab(train_data, max_size = 1000, min_freq = 1)
-indic.build_vocab(train_data, max_size = 1000, min_freq = 1)
+# Build the vocabulary for the Indic language
+indic.build_vocab(train_data, max_size=1000, min_freq=1)
 
 class Encoder(nn.Module):
   def __init__(self, input_size, embedding_size, hidden_size, num_layers, p, config=None):
@@ -251,18 +261,6 @@ class Encoder(nn.Module):
 
 
   def forward(self, x):
-
-    """
-        Perform forward pass of the encoder.
-
-        Args:
-            x: Input sequence tensor of shape (seq_length, N) where N is the batch size.
-
-        Returns:
-            encoder_states: Encoded states for each time step of shape (seq_length, N, hidden_size).
-            hidden: Final hidden state of the encoder of shape (num_layers, N, hidden_size) if unidirectional,
-                    or (2*num_layers, N, hidden_size) if bidirectional.
-    """
 
     # embedding shape: (seq_length, N, embedding_size)
     embedding = self.dropout(self.embedding(x))
@@ -343,20 +341,6 @@ class Decoder(nn.Module):
       self.fc = nn.Linear(hidden_size, output_size)
 
     def forward(self, x, encoder_states, hidden, cell):
-      """
-        Perform a forward pass of the decoder.
-
-        Args:
-            x: Input sequence tensor of shape (N), where N is the batch size.
-            encoder_states: Encoded states from the encoder of shape (seq_length, N, hidden_size).
-            hidden: Hidden state of the decoder of shape (num_layers*num_directions, N, hidden_size).
-            cell: Cell state of the decoder for LSTM, only passed when using bidirectional LSTM. Shape is same as hidden.
-
-        Returns:
-            predictions: Output predictions of the decoder of shape (N, output_size).
-            hidden: Hidden state of the decoder of shape (num_layers*num_directions, N, hidden_size).
-            cell: Cell state of the decoder for LSTM, only returned when bidirectional LSTM is used. Shape is same as hidden.
-      """
 
       # Expand dimensions to match the expected input shape
       x = x.unsqueeze(0)
@@ -446,17 +430,6 @@ class Seq2Seq(nn.Module):
     self.cell_type = config['cell_type']
 
   def forward(self, source, target, teacher_force_ratio = 0.5):
-    """
-        Perform a forward pass of the sequence-to-sequence model.
-
-        Args:
-            source: Input sequence tensor of shape (target_len, N), where N is the batch size.
-            target: Target sequence tensor of shape (target_len, N).
-            teacher_force_ratio: The probability of using teacher forcing during training.
-
-        Returns:
-            outputs: Output predictions of the decoder of shape (target_len, N, target_vocab_size).
-    """
 
     batch_size = source.shape[1]
     target_len = target.shape[0]
@@ -557,89 +530,62 @@ def load_checkpoint(checkpoint, model, optimizer):
     optimizer.load_state_dict(checkpoint["optimizer"])
     print("-x- Checkpoint Loaded Successfully! -x-")
 
-def check_accuracy(loader, model, input_shape=None, toggle_eval=True, print_test=False, config = None):
+def check_accuracy(loader, model, input_shape=None, toggle_eval=True, print_test=False, config=None):
+ 
     if toggle_eval:
         model.eval()
+    
     device = next(model.parameters()).device
     num_correct = 0
     num_samples = 0
     print_list = []
+    
     with torch.no_grad():
         loader.create_batches()
         for batch in loader.batches:
-          for example in batch:
-            print_row_dict = {}
-            num_samples += 1
-            eng_word = "".join([eng_idx2alpha[val] for val in example.eng])
-            indic_word = "".join([indic_idx2alpha[val2] for val2 in example.indic])
-            indic_pred = translit_infer(model, eng_word, eng, indic, device, max_length=50, config = config)
-            if config['test_model'] and print_test:
-              print_row_dict['english_word'] = eng_word
-              print_row_dict['ground_truth'] = indic_word
-              print_row_dict['predicted_word'] = indic_pred
-              print_list.append(print_row_dict)
-            if indic_pred == indic_word:
-              num_correct += 1
+            for example in batch:
+                print_row_dict = {}
+                num_samples += 1
+                eng_word = "".join([eng_idx2alpha[val] for val in example.eng])
+                indic_word = "".join([indic_idx2alpha[val2] for val2 in example.indic])
+                indic_pred = translit_infer(model, eng_word, eng, indic, device, max_length=50, config=config)
+                
+                if config['test_model'] and print_test:
+                    # Store the details for printing the test results
+                    print_row_dict['english_word'] = eng_word
+                    print_row_dict['ground_truth'] = indic_word
+                    print_row_dict['predicted_word'] = indic_pred
+                    print_list.append(print_row_dict)
+                
+                if indic_pred == indic_word:
+                    num_correct += 1
+    
     if config['test_model'] and print_test:
-      fields = ["english_word", "ground_truth", "predicted_word"]
-
-      with open('predictions_attention.csv', 'w', newline='') as file: 
-          writer = csv.DictWriter(file, fieldnames = fields)
-          writer.writeheader()
-          writer.writerows(print_list)
-
+        fields = ["english_word", "ground_truth", "predicted_word"]
+        
+        # Write the test results to a CSV file
+        with open('predictions_attention.csv', 'w', newline='') as file: 
+            writer = csv.DictWriter(file, fieldnames=fields)
+            writer.writeheader()
+            writer.writerows(print_list)
+    
     accuracy = num_correct / num_samples
+    
     if toggle_eval:
         model.train()
+    
     return accuracy
 
 
-# sweep_config_w_att = {
-#     'method': 'bayes', 
-#     'metric': {
-#       'name': 'val_accuracy',
-#       'goal': 'maximize'   
-#     },
-#     'parameters': {
-#         'dropout': {
-#             'values': [config['dropout']]
-#         },
-#         'learning_rate': {
-#             'values': [config['learning_rate']]
-#         },
-#         'batch_size': {
-#             'values': [config['batch_size']]
-#         },
-#         'input_embedding_size': {
-#             'values': [config['input_embedding_size']]
-#         },
-#         'num_layers': {
-#             'values': [config['num_layers']]
-#         },
-#         'hidden_size':{
-#             'values': [config['hidden_size']]
-#         },
-#         'cell_type': {
-#             'values': [config['cell_type']]
-#         },
-#         'bidirectional': {
-#             'values': [config['bidirectional']]
-#         },
-#         'epochs':{
-#             'values': [config['epochs']]
-#         }
-#     }
-# }
-
-# sweep_id_w_att = wandb.sweep(sweep_config_w_att,project=config['wandb_project'], entity=config['wandb_entity'])
-
+# Check if CUDA is available and set the device accordingly
 device = torch.device('cuda:0' if torch.cuda.is_available() else 'cpu')
 print(f'Device being used to train/test model: {torch.cuda.get_device_name(0)}')
-
 def train():
-    torch.cuda.empty_cache()
-    # with wandb.init() as run:
-        # config = wandb.config
+    """
+    Function to train the model.
+
+    """
+    torch.cuda.empty_cache()  # Clear GPU cache
 
     # Training Hyperparameters
     num_epochs = config['epochs']
@@ -661,42 +607,36 @@ def train():
     bidirectional = config['bidirectional']
 
     train_iterator, val_iterator, test_iterator = BucketIterator.splits(
-    (train_data, val_data, test_data),
-    batch_size = batch_size,
-    # Examples of similar length will be in same batch to minimize padding and save on compute
-    sort_within_batch = True,
-    sort_key = lambda x: len(x.eng),
-    device = device)
-
-
+        (train_data, val_data, test_data),
+        batch_size=batch_size,
+        # Examples of similar length will be in the same batch to minimize padding and save on compute
+        sort_within_batch=True,
+        sort_key=lambda x: len(x.eng),
+        device=device)
 
     encoder_net = Encoder(
         input_size_encoder, encoder_embedding_size, hidden_size, num_layers, enc_dropout, config=config
-        ).to(device)
+    ).to(device)
     decoder_net = Decoder(
         input_size_decoder, decoder_embedding_size, hidden_size, output_size, num_layers, dec_dropout, config=config
-        ).to(device)
-
-
+    ).to(device)
 
     model = Seq2Seq(encoder_net, decoder_net, config=config).to(device)
     model_name = model.run_name
-    # run.name = model_name
     optimizer = optim.Adam(model.parameters(), lr=learning_rate)
 
     pad_idx = indic.vocab.stoi['<pad>']
-    # if all examples in batch are of similar length, don't incur penalty for this padding
-    criterion = nn.CrossEntropyLoss(ignore_index = pad_idx)
+    criterion = nn.CrossEntropyLoss(ignore_index=pad_idx)
 
     if load_model:
-      load_checkpoint(torch.load(f'best_model_att.pth.tar'), model, optimizer)
+        load_checkpoint(torch.load(f'best_model_att.pth.tar'), model, optimizer)
 
     if indic_lang == 'hin':
-      word = 'bachta'
-      og_translit = 'बचता'
+        word = 'bachta'
+        og_translit = 'बचता'
     elif indic_lang == 'ben':
-      word = 'stagecraft'
-      og_translit = 'স্টেজক্রাফট'
+        word = 'stagecraft'
+        og_translit = 'স্টেজক্রাফট'
     acc_val_prev = 0
     acc_val_current = 0
     epoch_loss = 0
@@ -704,80 +644,61 @@ def train():
     print(f'Hyperparameter settings: {model_name}')
 
     for epoch in range(num_epochs):
-      print(f'Epoch [{epoch+1} / {num_epochs}]')
+        print(f'Epoch [{epoch + 1} / {num_epochs}]')
 
-      checkpoint = {
-          'state_dict': model.state_dict(),
-          'optimizer': optimizer.state_dict()
-      }
-      if epoch % 5 == 0 and epoch != 0:
-      # if acc_val_current > acc_val_prev:
+        checkpoint = {
+            'state_dict': model.state_dict(),
+            'optimizer': optimizer.state_dict()
+        }
 
-          if os.path.exists(f'{indic_lang}_{model_name}_{epoch}_checkpoint.pth.tar'):
-              os.remove(f'{indic_lang}_{model_name}_{epoch}_checkpoint.pth.tar')
-          acc_val_prev = acc_val_current
-          save_checkpoint(checkpoint, f'{indic_lang}_{model_name}_{epoch}_checkpoint.pth.tar')
+        if epoch % 5 == 0 and epoch != 0:
+            if os.path.exists(f'{indic_lang}_{model_name}_{epoch}_checkpoint.pth.tar'):
+                os.remove(f'{indic_lang}_{model_name}_{epoch}_checkpoint.pth.tar')
+            acc_val_prev = acc_val_current
+            save_checkpoint(checkpoint, f'{indic_lang}_{model_name}_{epoch}_checkpoint.pth.tar')
 
-      # First train, then test if config['test_model]==False
-      # if not config['test_model']:
-      loop = tqdm(enumerate(train_iterator), total=len(train_iterator))
-      for batch_idx, batch in loop:
-        inp_data = batch.eng.to(device)
-        target = batch.indic.to(device)
+        loop = tqdm(enumerate(train_iterator), total=len(train_iterator))
+        for batch_idx, batch in loop:
+            inp_data = batch.eng.to(device)
+            target = batch.indic.to(device)
 
-        output = model(inp_data, target)
-        # output shape: (target_len, batch_size, output_dim)
+            output = model(inp_data, target)
+            output = output[1:].reshape(-1, output.shape[2])
+            target = target[1:].reshape(-1)
+            optimizer.zero_grad()
+            loss = criterion(output, target)
+            loss.backward()
 
-        #basically reshape output keeping last output_dim same
-        output = output[1:].reshape(-1, output.shape[2]) # so that first start token is not sent to out model
-        # target -> (target_len, batch_size)
-        target = target[1:].reshape(-1)
-        optimizer.zero_grad()
-        loss = criterion(output, target)
+            # Clip gradients to avoid exploding gradients
+            torch.nn.utils.clip_grad_norm_(model.parameters(), max_norm=1)
+            optimizer.step()
+            epoch_loss += loss.item()
 
-        loss.backward()
+        model.eval()  # Turn off Dropout
+        translit_res = translit_infer(model, word, eng, indic, device, max_length=50, config=config)
+        print(f'Translated example word:  English: {word}, Actual: {og_translit}, Predicted: {translit_res}')
+        model.train()
 
-        # to avoid exploding gradients, clip them when they are above a threshold
-        torch.nn.utils.clip_grad_norm_(model.parameters(), max_norm=1)
-        optimizer.step()
-        epoch_loss += loss.item()
+        if config['test_model']:
+          print('Computing Loss, Test and Validation Accuracy...')
+        else:
+          print('Computing Loss and Validation Accuracy...')
+        acc_val_current = check_accuracy(val_iterator, model, input_shape=None, toggle_eval=True,
+                                         print_test=False, config=config)
+        epoch_loss = epoch_loss / len(train_iterator)
 
-      model.eval() # turns off Dropout
-      translit_res = translit_infer(model, word, eng, indic, device, max_length=50, config=config)
-      print(f'Translated example word:  English: {word}, Actual: {og_translit}, Predicted: {translit_res}')
-      model.train()
+        acc_test_current = 0
 
-      print('Computing Loss, Test and Validation Accuracy...')
-      acc_val_current = check_accuracy(val_iterator, model, input_shape=None, toggle_eval=True, print_test=False, config=config)
-      epoch_loss = epoch_loss/len(train_iterator)
 
-      acc_test_current = 0
+        if config['test_model']:
+            acc_test_current = check_accuracy(test_iterator, model, input_shape=None, toggle_eval=True, print_test=True, config=config)
 
-      if config['test_model']:
-        # print('Computing Loss and Test Accuracy...')
-        acc_test_current = check_accuracy(test_iterator, model, input_shape=None, toggle_eval=True, print_test=True, config=config)
-      #   metrics = {
-      #     "loss":epoch_loss,
-      #     "val_accuracy": acc_val_current,
-      #     "epochs":(epoch),
-      #     "test_accuracy": acc_test_current
-      #     }
-      # else:
-      #   metrics = {
-      #     "loss":epoch_loss,
-      #     "val_accuracy": acc_val_current,
-      #     "epochs":(epoch)
-      #     }
+            print(f'Training Loss: {epoch_loss:.2f}, Validation Accuracy: {acc_val_current * 100:.2f}%, Test Accuracy: {acc_test_current * 100:.2f}%')
+        else:
+            print(f'Training Loss: {epoch_loss:.2f}, Validation Accuracy: {acc_val_current * 100:.2f}%')
+         
 
-      # wandb.log(metrics)
-        print(f'Training Loss: {epoch_loss:.2f}, Validation Accuracy: {acc_val_current * 100:.2f}%, Test Accuracy: {acc_test_current * 100:.2f}%')
-      # else:
-      #   print('Computing Loss and Validation Accuracy...')
-      #   # acc_val_current = check_accuracy(val_iterator, model, input_shape=None, toggle_eval=True, print_accuracy=True, config=config)
-      #   print(f'Training Loss: {epoch_loss:.2f}, Validation Accuracy: {acc_val_current * 100:.2f}%')
-      # print('--------------------------')
-      epoch_loss = 0
+        epoch_loss = 0
+
 
 train()
-# wandb.agent(sweep_id_w_att, function=train,project=config['wandb_project'], entity=config['wandb_entity'], count=15)
-
